@@ -158,6 +158,24 @@ int main(int argc, char* argv[]) {
     // TODO: bail
   }
 
+  // show some midi info
+    //struct _WM_Info *wm_info;
+  struct _WM_Info *wm_info;
+  wm_info = WildMidi_GetInfo(midi_ptr);
+
+  uint32_t apr_mins = wm_info->approx_total_samples / (rate * 60);
+  uint32_t apr_secs = (wm_info->approx_total_samples % (rate * 60)) / rate;
+
+  mixer_options = wm_info->mixer_options;
+  char modes[5];
+  modes[0] = (mixer_options & WM_MO_LOG_VOLUME)? 'l' : ' ';
+  modes[1] = (mixer_options & WM_MO_REVERB)? 'r' : ' ';
+  modes[2] = (mixer_options & WM_MO_ENHANCED_RESAMPLING)? 'e' : ' ';
+  modes[3] = ' ';
+  modes[4] = '\0';
+
+  printf("[Approx %2um %2us Total]\n", apr_mins, apr_secs);
+
   #endif
 
 
