@@ -11,7 +11,7 @@
 #include <unistd.h> // for usleep
 #endif
 #define NUM_BUFFERS 4
-#define BUFFER_SIZE 1470*10
+#define BUFFER_SIZE 16384
 
 // Play a midi generated on the fly via wildmidi
 // The quality of wildmidi generations seems better than timidity
@@ -50,7 +50,13 @@ unsigned int frequency = 0;
 unsigned int bits = 0;
 ALenum format = 0;
 ALuint source = 0;
-void iter() {
+
+/*
+* main sample loop
+*/
+void iter()
+{
+
   ALuint buffer = 0;
   ALint buffersProcessed = 0;
   ALint buffersWereQueued = 0;
@@ -58,6 +64,7 @@ void iter() {
   ALint state;
   alGetSourcei(source, AL_BUFFERS_PROCESSED, &buffersProcessed);
   while (offset < size && buffersProcessed--) {
+
     // unqueue the old buffer and validate the queue length
     alGetSourcei(source, AL_BUFFERS_QUEUED, &buffersWereQueued);
     alSourceUnqueueBuffers(source, 1, &buffer);
@@ -73,9 +80,8 @@ void iter() {
 
     #if defined(USE_WILDMIDI)
 
-    int numSamples = BUFFER_SIZE;
-    len = numSamples;
-    wildMidiFillBuffer(midi_ptr, midiSampleBuffer, len);
+    WildMidi_GetOutput(midi_ptr, midiSampleBuffer, len);
+    
     alBufferData(buffer, format, midiSampleBuffer, len, frequency);
     
     #else
@@ -95,8 +101,8 @@ void iter() {
   // Exit once we've processed the entire clip.
   if (offset >= size) {
 #ifdef __EMSCRIPTEN__
-    int result = 0;
-    //REPORT_RESULT();
+    printf("Cancelling emscripten main loop because offset >= size");
+    emscripten_cancel_main_loop();
 #endif
     exit(0);
   }
@@ -122,7 +128,6 @@ int main(int argc, char* argv[]) {
   // Read in the audio sample.
   //
 
-  //FILE* fp = fopen("assets/Bburg1_2.mid.wav", "rb");
   FILE* fp = fopen("assets/Bburg1_2.mid.wav", "rb");
   
 
@@ -164,13 +169,24 @@ int main(int argc, char* argv[]) {
       format = AL_FORMAT_STEREO16;
     }
   }
+
+  // force format
+  format = AL_FORMAT_STEREO16;
+  frequency = 44100;
+
   offset += 8; // ignore the data chunk
 
   #if defined(USE_WILDMIDI)
+
+  #if defined(__EMSCRIPTEN__)
+  std::string config_file("assets/wildmidi.cfg");
+  #else
   std::string config_file("assets/linux-wildmidi.cfg");
+  #endif
   long libraryver = WildMidi_GetVersion();
-  unsigned int rate = 32072;
+  unsigned int rate = frequency; //44100;//32072;
   unsigned mixer_options = WM_MO_REVERB | WM_MO_ENHANCED_RESAMPLING;
+  //mixer_options = WM_MO_STRIPSILENCE;
   printf("Initializing libWildMidi %ld.%ld.%ld\n\n",
                       (libraryver>>16) & 255,
                       (libraryver>> 8) & 255,
@@ -183,9 +199,6 @@ int main(int argc, char* argv[]) {
 
   uint8_t master_volume = 100;
   WildMidi_MasterVolume(master_volume);
-
-  //std::string midiFileName("assets/Bburg1_2.mid");
-  //std::string midiFileName("assets/bburg14a.mid");
 
   // open our midi file
   printf("Playing %s\n", midiFileName.c_str());
@@ -234,7 +247,7 @@ int main(int argc, char* argv[]) {
     }
     #if defined(USE_WILDMIDI)
 
-    wildMidiFillBuffer(midi_ptr, midiSampleBuffer, len);
+    WildMidi_GetOutput(midi_ptr, midiSampleBuffer, len);
     alBufferData(buffers[numBuffers], format, &data[offset], len, frequency);
     
     #else
