@@ -57,7 +57,7 @@ void iter() {
   if (offset >= size) {
 #ifdef __EMSCRIPTEN__
     int result = 0;
-    REPORT_RESULT();
+    //REPORT_RESULT();
 #endif
     exit(0);
   }
