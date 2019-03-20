@@ -20,6 +20,8 @@
 #include "wildmidi_lib.h"
 #endif
 
+#include <string>
+
 
 ALCdevice* device = NULL;
 ALCcontext* context = NULL;
@@ -81,11 +83,9 @@ int main(int argc, char* argv[]) {
   //
   // Read in the audio sample.
   //
-#ifdef __EMSCRIPTEN__
-  FILE* fp = fopen("Bburg1_2.mid.wav", "rb");
-#else
-  FILE* fp = fopen("Bburg1_2.mid.wav", "rb");
-#endif
+
+  FILE* fp = fopen("assets/Bburg1_2.mid.wav", "rb");
+
   fseek(fp, 0, SEEK_END);
   size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
@@ -125,6 +125,42 @@ int main(int argc, char* argv[]) {
     }
   }
   offset += 8; // ignore the data chunk
+
+  #if defined(USE_WILDMIDI)
+  std::string config_file("assets/linux-wildmidi.cfg");
+  long libraryver = WildMidi_GetVersion();
+  unsigned int rate = 32072;
+  unsigned mixer_options = WM_MO_REVERB | WM_MO_ENHANCED_RESAMPLING;
+  printf("Initializing libWildMidi %ld.%ld.%ld\n\n",
+                      (libraryver>>16) & 255,
+                      (libraryver>> 8) & 255,
+                      (libraryver    ) & 255);
+  if (WildMidi_Init(config_file.c_str(), rate, mixer_options) == -1) {
+      fprintf(stderr, "%s\n", WildMidi_GetError());
+      WildMidi_ClearError();
+      return (1);
+  }
+
+  uint8_t master_volume = 100;
+  WildMidi_MasterVolume(master_volume);
+
+  std::string midiFileName("assets/Bburg1_2.mid");
+
+  // open our midi file
+  printf("Playing %s\n", midiFileName.c_str());
+
+  void *midi_ptr = NULL;
+  char * ret_err = NULL;
+  midi_ptr = WildMidi_Open(midiFileName.c_str());
+  if (midi_ptr == NULL) {
+    ret_err = WildMidi_GetError();
+    printf(" Skipping: %s\n",ret_err);
+    // TODO: bail
+  }
+
+  #endif
+
+
   //
   // Seed the buffers with some initial data.
   //

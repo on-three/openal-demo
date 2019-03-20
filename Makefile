@@ -6,7 +6,7 @@ INCLUDE_DIRS = -I../wildmidi/include
 LINUX_LIBS = ../wildmidi/linux/libWildMidi.a
 WEB_LIBS = ../wildmidi/web/libWildMidi.a
 
-WEB_FLAGS = --embed-file Bburg1_2.mid.wav -s ALLOW_MEMORY_GROWTH=1
+WEB_FLAGS = --embed-file assets -s ALLOW_MEMORY_GROWTH=1
 
 native:
 	g++ main.cpp -lopenal $(INCLUDE_DIRS) $(LINUX_LIBS) -o test
