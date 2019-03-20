@@ -22,6 +22,22 @@
 
 #include <string>
 
+#if defined(USE_WILDMIDI)
+
+midi *midi_ptr = NULL;
+int8_t midiSampleBuffer[BUFFER_SIZE];
+
+unsigned int wildMidiFillBuffer(midi* midi_ptr, int8_t* output_buffer, uint32_t num_samples)
+{
+  int res = WildMidi_GetOutput(midi_ptr, output_buffer, num_samples);
+  if (res <= 0)
+  {
+    fprintf(stderr, "Could not read samples frm wildmidi.\n");
+  }
+  return res;
+}
+#endif
+
 
 ALCdevice* device = NULL;
 ALCcontext* context = NULL;
@@ -54,7 +70,19 @@ void iter() {
     assert(buffersQueued == buffersWereQueued - 1);
     // queue the new buffer and validate the queue length
     buffersWereQueued = buffersQueued;
+
+    #if defined(USE_WILDMIDI)
+
+    int numSamples = BUFFER_SIZE;
+    len = numSamples;
+    wildMidiFillBuffer(midi_ptr, midiSampleBuffer, len);
+    alBufferData(buffer, format, midiSampleBuffer, len, frequency);
+    
+    #else
+    
     alBufferData(buffer, format, &data[offset], len, frequency);
+    
+    #endif
     alSourceQueueBuffers(source, 1, &buffer);
     assert(alGetError() == AL_NO_ERROR);
     alGetSourcei(source, AL_BUFFERS_QUEUED, &buffersQueued);
@@ -74,6 +102,16 @@ void iter() {
   }
 }
 int main(int argc, char* argv[]) {
+
+  // first argument is midi file to play
+  // if no args use default
+  std::string midiFileName("assets/bburg14a.mid");
+  if(argc > 1)
+  {
+    midiFileName = argv[1];
+  }
+  printf("Playing midi file: %s\n", midiFileName.c_str());
+
   //
   // Setup the AL context.
   //
@@ -84,7 +122,9 @@ int main(int argc, char* argv[]) {
   // Read in the audio sample.
   //
 
+  //FILE* fp = fopen("assets/Bburg1_2.mid.wav", "rb");
   FILE* fp = fopen("assets/Bburg1_2.mid.wav", "rb");
+  
 
   fseek(fp, 0, SEEK_END);
   size = ftell(fp);
@@ -144,12 +184,13 @@ int main(int argc, char* argv[]) {
   uint8_t master_volume = 100;
   WildMidi_MasterVolume(master_volume);
 
-  std::string midiFileName("assets/Bburg1_2.mid");
+  //std::string midiFileName("assets/Bburg1_2.mid");
+  //std::string midiFileName("assets/bburg14a.mid");
 
   // open our midi file
   printf("Playing %s\n", midiFileName.c_str());
 
-  void *midi_ptr = NULL;
+  
   char * ret_err = NULL;
   midi_ptr = WildMidi_Open(midiFileName.c_str());
   if (midi_ptr == NULL) {
@@ -176,15 +217,6 @@ int main(int argc, char* argv[]) {
 
   printf("[Approx %2um %2us Total]\n", apr_mins, apr_secs);
 
-  // Get some initial samples to run
-
-  static const unsigned NUM_SAMPLES = 16384;
-  int8_t output_buffer[NUM_SAMPLES];
-  int res = WildMidi_GetOutput(midi_ptr, output_buffer, NUM_SAMPLES);
-  if (res <= 0)
-  {
-    fprintf(stderr, "Could not read samples frm wildmidi.\n");
-  }
   #endif
 
 
@@ -200,7 +232,16 @@ int main(int argc, char* argv[]) {
     if (len > BUFFER_SIZE) {
       len = BUFFER_SIZE;
     }
+    #if defined(USE_WILDMIDI)
+
+    wildMidiFillBuffer(midi_ptr, midiSampleBuffer, len);
     alBufferData(buffers[numBuffers], format, &data[offset], len, frequency);
+    
+    #else
+    
+    alBufferData(buffers[numBuffers], format, &data[offset], len, frequency);
+    
+    #endif
     alSourceQueueBuffers(source, 1, &buffers[numBuffers]);
     assert(alGetError() == AL_NO_ERROR);
     offset += len;

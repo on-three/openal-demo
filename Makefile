@@ -12,4 +12,4 @@ native:
 	g++ main.cpp -lopenal $(INCLUDE_DIRS) $(LINUX_LIBS) -o test
 
 web:
-	em++ main.cpp -g -lopenal  $(WEB_FLAGS) $(INCLUDE_DIRS) $(WEB_LIBS) -o test.html
+	em++ main.cpp -g4 -lopenal  $(WEB_FLAGS) $(INCLUDE_DIRS) $(WEB_LIBS) -o test.html
