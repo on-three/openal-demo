@@ -4,7 +4,7 @@ WEB_TARGET=$(TARGET).html
 
 INCLUDE_DIRS = -I../wildmidi/include
 LINUX_LIBS = ../wildmidi/linux/libWildMidi.a
-WEB_LIBS = ../wildmidi/web/libWildMidi.a
+WEB_LIBS = ../wildmidi/web/libWildMidi.bc
 WEB_FLAGS = --emrun --embed-file assets -s ALLOW_MEMORY_GROWTH=1
 
 all: native web
