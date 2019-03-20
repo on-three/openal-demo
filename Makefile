@@ -7,10 +7,12 @@ LINUX_LIBS = ../wildmidi/linux/libWildMidi.a
 WEB_LIBS = ../wildmidi/web/libWildMidi.a
 WEB_FLAGS = --emrun --embed-file assets -s ALLOW_MEMORY_GROWTH=1
 
+all: native web
+
 native: $(TARGET)
 
 $(TARGET): main.cpp
-	g++ main.cpp -lopenal $(INCLUDE_DIRS) $(LINUX_LIBS) -o $@
+	g++ main.cpp -g -lopenal $(INCLUDE_DIRS) $(LINUX_LIBS) -o $@
 
 web: $(WEB_TARGET)
 	

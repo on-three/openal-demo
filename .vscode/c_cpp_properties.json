@@ -1,0 +1,16 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/../wildmidi/include"
+            ],
+            "defines": [],
+            "compilerPath": "/home/on-three/code/emsdk-portable/clang/e1.38.25_64bit/clang",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "clang-x64"
+        }
+    ],
+    "version": 4
+}
