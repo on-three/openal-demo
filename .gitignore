@@ -1,2 +1,8 @@
 .vscode
-test*
+midi-player.html
+midi-player
+*.js
+*.wasm
+*.map
+*.wast
+*.o
