@@ -6,8 +6,9 @@
 #include <AL/al.h>
 #include <AL/alc.h>
 #else
-#include "../system/include/AL/al.h"
-#include "../system/include/AL/alc.h"
+#include <AL/al.h>
+#include <AL/alc.h>
+#include <unistd.h> // for usleep
 #endif
 #define NUM_BUFFERS 4
 #define BUFFER_SIZE 1470*10
@@ -72,9 +73,9 @@ int main(int argc, char* argv[]) {
   // Read in the audio sample.
   //
 #ifdef __EMSCRIPTEN__
-  FILE* fp = fopen("the_entertainer.wav", "rb");
+  FILE* fp = fopen("Bburg1_2.mid.wav", "rb");
 #else
-  FILE* fp = fopen("sounds/the_entertainer.wav", "rb");
+  FILE* fp = fopen("Bburg1_2.mid.wav", "rb");
 #endif
   fseek(fp, 0, SEEK_END);
   size = ftell(fp);
