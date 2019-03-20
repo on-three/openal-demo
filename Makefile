@@ -1,11 +1,11 @@
 
 TARGET=midi-player
-WEB_TARGET=$(TARGET).html
+WEB_TARGET=index.html
 
 INCLUDE_DIRS = -I../wildmidi/include
 LINUX_LIBS = ../wildmidi/linux/libWildMidi.a
 WEB_LIBS = ../wildmidi/web/libWildMidi.bc
-WEB_FLAGS = --emrun --embed-file assets -s ALLOW_MEMORY_GROWTH=1
+WEB_FLAGS = --emrun --preload-file assets -s ALLOW_MEMORY_GROWTH=1
 
 all: native web
 
