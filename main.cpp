@@ -176,6 +176,15 @@ int main(int argc, char* argv[]) {
 
   printf("[Approx %2um %2us Total]\n", apr_mins, apr_secs);
 
+  // Get some initial samples to run
+
+  static const unsigned NUM_SAMPLES = 16384;
+  int8_t output_buffer[NUM_SAMPLES];
+  int res = WildMidi_GetOutput(midi_ptr, output_buffer, NUM_SAMPLES);
+  if (res <= 0)
+  {
+    fprintf(stderr, "Could not read samples frm wildmidi.\n");
+  }
   #endif
 
 
