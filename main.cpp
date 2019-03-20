@@ -15,14 +15,9 @@
 
 // Play a midi generated on the fly via wildmidi
 // The quality of wildmidi generations seems better than timidity
-#define USE_WILDMIDI
-#if defined(USE_WILDMIDI)
 #include "wildmidi_lib.h"
-#endif
 
 #include <string>
-
-#if defined(USE_WILDMIDI)
 
 midi *midi_ptr = NULL;
 int8_t midiSampleBuffer[BUFFER_SIZE];
@@ -36,19 +31,15 @@ unsigned int wildMidiFillBuffer(midi* midi_ptr, int8_t* output_buffer, uint32_t 
   }
   return res;
 }
-#endif
-
 
 ALCdevice* device = NULL;
 ALCcontext* context = NULL;
 // Audio source state.
 unsigned char* data = NULL;
-unsigned int size = 0;
-unsigned int offset = 0;
-unsigned int channels = 0;
-unsigned int frequency = 0;
-unsigned int bits = 0;
-ALenum format = 0;
+unsigned int channels = 2;
+unsigned int frequency = 44100;
+unsigned int bits = 16;
+ALenum format = AL_FORMAT_STEREO16;
 ALuint source = 0;
 
 /*
@@ -63,32 +54,23 @@ void iter()
   ALint buffersQueued = 0;
   ALint state;
   alGetSourcei(source, AL_BUFFERS_PROCESSED, &buffersProcessed);
-  while (offset < size && buffersProcessed--) {
+  while (buffersProcessed--) {
 
     // unqueue the old buffer and validate the queue length
     alGetSourcei(source, AL_BUFFERS_QUEUED, &buffersWereQueued);
     alSourceUnqueueBuffers(source, 1, &buffer);
     assert(alGetError() == AL_NO_ERROR);
-    int len = size - offset;
-    if (len > BUFFER_SIZE) {
-      len = BUFFER_SIZE;
-    }
+    int len = BUFFER_SIZE;
+
     alGetSourcei(source, AL_BUFFERS_QUEUED, &buffersQueued);
     assert(buffersQueued == buffersWereQueued - 1);
     // queue the new buffer and validate the queue length
     buffersWereQueued = buffersQueued;
 
-    #if defined(USE_WILDMIDI)
-
     WildMidi_GetOutput(midi_ptr, midiSampleBuffer, len);
     
     alBufferData(buffer, format, midiSampleBuffer, len, frequency);
     
-    #else
-    
-    alBufferData(buffer, format, &data[offset], len, frequency);
-    
-    #endif
     alSourceQueueBuffers(source, 1, &buffer);
     assert(alGetError() == AL_NO_ERROR);
     alGetSourcei(source, AL_BUFFERS_QUEUED, &buffersQueued);
@@ -96,10 +78,9 @@ void iter()
     // make sure it's still playing
     alGetSourcei(source, AL_SOURCE_STATE, &state);
     assert(state == AL_PLAYING);
-    offset += len;
   }
   // Exit once we've processed the entire clip.
-  if (offset >= size) {
+  if (false) {
 #ifdef __EMSCRIPTEN__
     printf("Cancelling emscripten main loop because offset >= size");
     emscripten_cancel_main_loop();
@@ -124,60 +105,7 @@ int main(int argc, char* argv[]) {
   device = alcOpenDevice(NULL);
   context = alcCreateContext(device, NULL);
   alcMakeContextCurrent(context);
-  //
-  // Read in the audio sample.
-  //
-
-  FILE* fp = fopen("assets/Bburg1_2.mid.wav", "rb");
-  
-
-  fseek(fp, 0, SEEK_END);
-  size = ftell(fp);
-  fseek(fp, 0, SEEK_SET);
-  data = (unsigned char*)malloc(size);
-  fread(data, size, 1, fp);
-  fclose(fp);
-  offset = 12; // ignore the RIFF header
-  offset += 8; // ignore the fmt header
-  offset += 2; // ignore the format type
-  channels = data[offset + 1] << 8;
-  channels |= data[offset];
-  offset += 2;
-  printf("Channels: %u\n", channels);
-  frequency = data[offset + 3] << 24;
-  frequency |= data[offset + 2] << 16;
-  frequency |= data[offset + 1] << 8;
-  frequency |= data[offset];
-  offset += 4;
-  printf("Frequency: %u\n", frequency);
-  offset += 6; // ignore block size and bps
-  bits = data[offset + 1] << 8;
-  bits |= data[offset];
-  offset += 2;
-  printf("Bits: %u\n", bits);
-  format = 0;
-  if (bits == 8) {
-    if (channels == 1) {
-      format = AL_FORMAT_MONO8;
-    } else if (channels == 2) {
-      format = AL_FORMAT_STEREO8;
-    }
-  } else if (bits == 16) {
-    if (channels == 1) {
-      format = AL_FORMAT_MONO16;
-    } else if (channels == 2) {
-      format = AL_FORMAT_STEREO16;
-    }
-  }
-
-  // force format
-  format = AL_FORMAT_STEREO16;
-  frequency = 44100;
-
-  offset += 8; // ignore the data chunk
-
-  #if defined(USE_WILDMIDI)
-
+ 
   #if defined(__EMSCRIPTEN__)
   std::string config_file("assets/wildmidi.cfg");
   #else
@@ -203,7 +131,7 @@ int main(int argc, char* argv[]) {
   // open our midi file
   printf("Playing %s\n", midiFileName.c_str());
 
-  
+
   char * ret_err = NULL;
   midi_ptr = WildMidi_Open(midiFileName.c_str());
   if (midi_ptr == NULL) {
@@ -230,9 +158,6 @@ int main(int argc, char* argv[]) {
 
   printf("[Approx %2um %2us Total]\n", apr_mins, apr_secs);
 
-  #endif
-
-
   //
   // Seed the buffers with some initial data.
   //
@@ -240,24 +165,14 @@ int main(int argc, char* argv[]) {
   alGenBuffers(NUM_BUFFERS, buffers);
   alGenSources(1, &source);
   ALint numBuffers = 0;
-  while (numBuffers < NUM_BUFFERS && offset < size) {
-    int len = size - offset;
-    if (len > BUFFER_SIZE) {
-      len = BUFFER_SIZE;
-    }
-    #if defined(USE_WILDMIDI)
+  while (numBuffers < NUM_BUFFERS) {
+    int len = BUFFER_SIZE;
 
     WildMidi_GetOutput(midi_ptr, midiSampleBuffer, len);
-    alBufferData(buffers[numBuffers], format, &data[offset], len, frequency);
+    alBufferData(buffers[numBuffers], format, midiSampleBuffer, len, frequency);
     
-    #else
-    
-    alBufferData(buffers[numBuffers], format, &data[offset], len, frequency);
-    
-    #endif
     alSourceQueueBuffers(source, 1, &buffers[numBuffers]);
     assert(alGetError() == AL_NO_ERROR);
-    offset += len;
     numBuffers++;
   }
   //

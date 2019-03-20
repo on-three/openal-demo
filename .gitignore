@@ -5,3 +5,4 @@ midi-player
 *.map
 *.wast
 *.o
+*.ipch
