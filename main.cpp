@@ -12,6 +12,15 @@
 #endif
 #define NUM_BUFFERS 4
 #define BUFFER_SIZE 1470*10
+
+// Play a midi generated on the fly via wildmidi
+// The quality of wildmidi generations seems better than timidity
+#define USE_WILDMIDI
+#if defined(USE_WILDMIDI)
+#include "wildmidi_lib.h"
+#endif
+
+
 ALCdevice* device = NULL;
 ALCcontext* context = NULL;
 // Audio source state.
