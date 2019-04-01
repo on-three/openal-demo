@@ -11,7 +11,13 @@
       "group": {
         "kind": "build",
         "isDefault": true
-      }
+      },
+      "presentation": {
+				"echo": true,
+				"focus": true,
+				"panel": "shared",
+				"reveal": "always"
+			},
     },
     {
       "label": "Clean All",

@@ -95,6 +95,7 @@ int createWindow()
     fprintf(stderr, "Could not create a renderer: %s", SDL_GetError());
     return -1;
   }
+  return 0;
 }
 
 int destroyWindow()
@@ -104,6 +105,8 @@ int destroyWindow()
 
   // Clean up
   SDL_Quit();
+
+  return 0;
 }
 
 void render(float t, float dt)
@@ -157,9 +160,9 @@ void iter()
     alGetSourcei(source, AL_SOURCE_STATE, &state);
     assert(state == AL_PLAYING);
   }
-  // Exit once we've processed the entire clip.
-  if (samplesGenerated == 0) {
-
+  // TODO: Exit once we've processed the entire clip.
+  //if (samplesGenerated == 0) {
+  if(false) {
     //done = true;
 
 #ifdef __EMSCRIPTEN__
@@ -168,6 +171,34 @@ void iter()
 #endif
   }
 }
+
+void mainLoop()
+{
+  iter();
+
+  #if defined(VIZ)
+  // Get the next event
+  SDL_Event event;
+  if (SDL_PollEvent(&event))
+  {
+    if (event.type == SDL_QUIT)
+    {
+      // Break out of the loop on quit
+      //break;
+      done = true;
+      return;
+    }
+  }
+  // TODO: feed with total elapsed time and delta time
+  render(0.0f, 0.0f);
+  #endif
+
+  #if !defined(__EMSCRIPTEN__)
+  usleep(16);
+  #endif
+}
+
+
 int main(int argc, char* argv[]) {
 
   // first argument is midi file to play
@@ -270,36 +301,20 @@ int main(int argc, char* argv[]) {
   alGetSourcei(source, AL_BUFFERS_QUEUED, &numBuffers);
   assert(numBuffers == NUM_BUFFERS);
 
-  #if defined(VIZ)
-  createWindow();
-  #endif
-
   //
   // Cycle and refill the buffers until we're done.
   //
 #ifdef __EMSCRIPTEN__
-  emscripten_set_main_loop(iter, 0, 0);
-#else
+  emscripten_set_main_loop(mainLoop, 0, 0);
+#endif
+
+  #if defined(VIZ)
+  createWindow();
+  #endif
+
+#if !defined(__EMSCRIPTEN__)
   while (!done) {
-    iter();
-
-    #if defined(VIZ)
-    // Get the next event
-    SDL_Event event;
-    if (SDL_PollEvent(&event))
-    {
-      if (event.type == SDL_QUIT)
-      {
-        // Break out of the loop on quit
-        break;
-      }
-    }
-    // TODO: feed with total elapsed time and delta time
-    render(0.0f, 0.0f);
-    #endif
-
-
-    usleep(16);
+    mainLoop();
   }
 
   #if defined(VIZ)
