@@ -4,19 +4,14 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Build All",
+      "label": "Build Linux",
       "type": "shell",
-      "command": "make all",
+      "command": "make native",
+      "problemMatcher": [],
       "group": {
         "kind": "build",
         "isDefault": true
-      },
-      "presentation": {
-				"echo": true,
-				"focus": true,
-				"panel": "shared",
-				"reveal": "always"
-			},
+      }
     },
     {
       "label": "Clean All",

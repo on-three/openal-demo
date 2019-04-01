@@ -3,7 +3,8 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/../wildmidi/include"
+                "${workspaceFolder}/../wildmidi/include",
+                "${workspaceFolder}/../midifile/include"                
             ],
             "defines": [],
             "compilerPath": "/home/on-three/code/emsdk-portable/clang/e1.38.25_64bit/clang",

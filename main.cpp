@@ -13,11 +13,23 @@
 #define NUM_BUFFERS 4
 #define BUFFER_SIZE 16384
 
+
 // Play a midi generated on the fly via wildmidi
 // The quality of wildmidi generations seems better than timidity
 #include "wildmidi_lib.h"
 
+
+// visualization
+#define VIZ
+#if defined(VIZ)
+#include "SDL.h"
+#include "SDL_video.h"
+// Midi visualization requires a separate parsing lib
+#include "MidiFile.h"
+#endif
+
 #include <string>
+#include <sstream>
 
 static const std::string defaultMidiFilename = "assets/bburg14a.mid";
 static const std::string wildmidiConfigFilename = 
@@ -49,6 +61,61 @@ unsigned int frequency = 44100;
 unsigned int bits = 16;
 ALenum format = AL_FORMAT_STEREO16;
 ALuint source = 0;
+bool done = false;
+
+#if defined(VIZ)
+
+SDL_Window *window = nullptr;
+SDL_Renderer *renderer = nullptr;
+
+int createWindow()
+{
+  SDL_Init(SDL_INIT_VIDEO);              // Initialize SDL2
+
+  // Create an application window with the following settings:
+  window = SDL_CreateWindow(
+      "An SDL2 window",                  // window title
+      SDL_WINDOWPOS_UNDEFINED,           // initial x position
+      SDL_WINDOWPOS_UNDEFINED,           // initial y position
+      640,                               // width, in pixels
+      480,                               // height, in pixels
+      SDL_WINDOW_OPENGL                  // flags - see below
+  );
+
+  // Check that the window was successfully created
+  if (window == NULL) {
+      // In the case that the window could not be made...
+      fprintf(stderr, "Could not create window: %s\n", SDL_GetError());
+      return -1;
+  }
+
+  renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+  if (renderer == nullptr)
+  {
+    fprintf(stderr, "Could not create a renderer: %s", SDL_GetError());
+    return -1;
+  }
+}
+
+int destroyWindow()
+{
+  // Close and destroy the window
+  SDL_DestroyWindow(window);
+
+  // Clean up
+  SDL_Quit();
+}
+
+void render(float t, float dt)
+{
+  // Set the color to cornflower blue and clear
+  SDL_SetRenderDrawColor(renderer, 100, 149, 237, 255);
+  SDL_RenderClear(renderer);
+  // Show the renderer contents
+  SDL_RenderPresent(renderer);
+}
+
+#endif
 
 /*
 * main sample loop
@@ -62,6 +129,9 @@ void iter()
   ALint buffersQueued = 0;
   ALint state;
   alGetSourcei(source, AL_BUFFERS_PROCESSED, &buffersProcessed);
+
+  int samplesGenerated = 0;
+
   while (buffersProcessed--) {
 
     // unqueue the old buffer and validate the queue length
@@ -75,7 +145,7 @@ void iter()
     // queue the new buffer and validate the queue length
     buffersWereQueued = buffersQueued;
 
-    WildMidi_GetOutput(midi_ptr, midiSampleBuffer, len);
+    samplesGenerated += WildMidi_GetOutput(midi_ptr, midiSampleBuffer, len);
     
     alBufferData(buffer, format, midiSampleBuffer, len, frequency);
     
@@ -88,12 +158,14 @@ void iter()
     assert(state == AL_PLAYING);
   }
   // Exit once we've processed the entire clip.
-  if (false) {
+  if (samplesGenerated == 0) {
+
+    //done = true;
+
 #ifdef __EMSCRIPTEN__
     printf("Cancelling emscripten main loop because offset >= size");
     emscripten_cancel_main_loop();
 #endif
-    exit(0);
   }
 }
 int main(int argc, char* argv[]) {
@@ -107,14 +179,14 @@ int main(int argc, char* argv[]) {
   }
   printf("Playing midi file: %s\n", midiFileName.c_str());
 
-  #if 0
+  #if defined(VIZ)
   // use midifile lib to parse contents for visualization
   // would be nice if wildmidi had this functionality exposed but it doesn't
-  MidiFile midifile(options.getArg(1));
-  stringstream notes;
+  smf::MidiFile midifile(midiFileName);
+  std::stringstream notes;
   int minpitch = -1;
   int maxpitch = -1;
-  getMinMaxPitch(midifile, minpitch, maxpitch);
+  //getMinMaxPitch(midifile, minpitch, maxpitch);
   #endif
 
   //
@@ -197,15 +269,42 @@ int main(int argc, char* argv[]) {
   assert(state == AL_PLAYING);
   alGetSourcei(source, AL_BUFFERS_QUEUED, &numBuffers);
   assert(numBuffers == NUM_BUFFERS);
+
+  #if defined(VIZ)
+  createWindow();
+  #endif
+
   //
   // Cycle and refill the buffers until we're done.
   //
 #ifdef __EMSCRIPTEN__
   emscripten_set_main_loop(iter, 0, 0);
 #else
-  while (1) {
+  while (!done) {
     iter();
+
+    #if defined(VIZ)
+    // Get the next event
+    SDL_Event event;
+    if (SDL_PollEvent(&event))
+    {
+      if (event.type == SDL_QUIT)
+      {
+        // Break out of the loop on quit
+        break;
+      }
+    }
+    // TODO: feed with total elapsed time and delta time
+    render(0.0f, 0.0f);
+    #endif
+
+
     usleep(16);
   }
+
+  #if defined(VIZ)
+  destroyWindow();
+  #endif
+
 #endif
 }
