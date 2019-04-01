@@ -67,6 +67,10 @@ bool done = false;
 
 SDL_Window *window = nullptr;
 SDL_Renderer *renderer = nullptr;
+SDL_Texture *texture = nullptr;
+SDL_Texture *textureBuffer = nullptr;
+int width = 640;
+int height = 480;
 
 int createWindow()
 {
@@ -77,8 +81,8 @@ int createWindow()
       "An SDL2 window",                  // window title
       SDL_WINDOWPOS_UNDEFINED,           // initial x position
       SDL_WINDOWPOS_UNDEFINED,           // initial y position
-      640,                               // width, in pixels
-      480,                               // height, in pixels
+      width,                               // width, in pixels
+      height,                               // height, in pixels
       SDL_WINDOW_OPENGL                  // flags - see below
   );
 
@@ -95,6 +99,23 @@ int createWindow()
     fprintf(stderr, "Could not create a renderer: %s", SDL_GetError());
     return -1;
   }
+
+  #if 0
+  background = SDL_LoadBMP("hockeyrink.bmp");
+  #else
+  texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
+  if(texture == NULL)
+  {
+    fprintf(stderr, "Texture create error %s\n", SDL_GetError());
+  }
+
+  textureBuffer = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
+  if(textureBuffer == NULL)
+  {
+    fprintf(stderr, "Rendertexture create error %s\n", SDL_GetError());
+  }
+
+  #endif
   return 0;
 }
 
@@ -114,6 +135,62 @@ void render(float t, float dt)
   // Set the color to cornflower blue and clear
   SDL_SetRenderDrawColor(renderer, 100, 149, 237, 255);
   SDL_RenderClear(renderer);
+
+  SDL_Rect srcrect;
+  srcrect.x = 1;
+  srcrect.y = 0;
+  srcrect.w = width - 1;
+  srcrect.h = height;
+
+  SDL_Rect destrect;
+  destrect.x = 0;
+  destrect.y = 0;
+  destrect.w = width;// - 1;
+  destrect.h = height;
+
+  // copy the current background texture back to the render texture (but with 1 pixel left offset)
+  /*   int SDL_RenderCopyEx(SDL_Renderer*          renderer,
+                     SDL_Texture*           texture,
+                     const SDL_Rect*        srcrect,
+                     const SDL_Rect*        dstrect,
+                     const double           angle,
+                     const SDL_Point*       center,
+                     const SDL_RendererFlip flip) */
+	SDL_SetRenderTarget(renderer, textureBuffer);
+	//SDL_RenderClear(renderer);
+	//SDL_RenderCopy(renderer, texture, NULL, NULL);
+  SDL_RenderCopyEx(renderer, texture, &srcrect, &destrect, 0.0, NULL, SDL_FLIP_NONE);
+
+
+  // TODO: draw in new notes along the right edge
+  #if 1
+  static int i = 0;
+  SDL_Rect drawRect;
+  drawRect.x = 300;
+  drawRect.y = 200 + i % 100;
+  drawRect.w = 100;
+  drawRect.h = 100;
+  // Set render color to blue ( rect will be rendered in this color )
+  SDL_SetRenderDrawColor( renderer, 0, 0, 255, 255 );
+  SDL_RenderFillRect(renderer, &drawRect);
+  i++;
+  #endif
+
+  //Detach the texture
+	SDL_SetRenderTarget(renderer, NULL);
+
+  // copy the render buffer back to our background texture
+  SDL_SetRenderTarget(renderer, texture);
+  SDL_RenderCopy(renderer, textureBuffer, NULL, NULL);
+  SDL_SetRenderTarget(renderer, NULL);
+
+  // Set the color to cornflower blue and clear
+  SDL_SetRenderDrawColor(renderer, 100, 149, 237, 255);
+  //SDL_RenderClear(renderer);
+
+  // draw in our visualization texture which should make the BG 100% not visible
+  SDL_RenderCopy(renderer, texture, NULL, NULL);
+
   // Show the renderer contents
   SDL_RenderPresent(renderer);
 }
