@@ -19,6 +19,14 @@
 
 #include <string>
 
+static const std::string defaultMidiFilename = "assets/bburg14a.mid";
+static const std::string wildmidiConfigFilename = 
+#if defined(__EMSCRIPTEN__)
+  "assets/wildmidi.cfg";
+#else
+  "assets/linux-wildmidi.cfg";
+#endif
+
 midi *midi_ptr = NULL;
 int8_t midiSampleBuffer[BUFFER_SIZE];
 
@@ -92,12 +100,22 @@ int main(int argc, char* argv[]) {
 
   // first argument is midi file to play
   // if no args use default
-  std::string midiFileName("assets/bburg14a.mid");
+  std::string midiFileName = defaultMidiFilename;
   if(argc > 1)
   {
     midiFileName = argv[1];
   }
   printf("Playing midi file: %s\n", midiFileName.c_str());
+
+  #if 0
+  // use midifile lib to parse contents for visualization
+  // would be nice if wildmidi had this functionality exposed but it doesn't
+  MidiFile midifile(options.getArg(1));
+  stringstream notes;
+  int minpitch = -1;
+  int maxpitch = -1;
+  getMinMaxPitch(midifile, minpitch, maxpitch);
+  #endif
 
   //
   // Setup the AL context.
@@ -106,11 +124,6 @@ int main(int argc, char* argv[]) {
   context = alcCreateContext(device, NULL);
   alcMakeContextCurrent(context);
  
-  #if defined(__EMSCRIPTEN__)
-  std::string config_file("assets/wildmidi.cfg");
-  #else
-  std::string config_file("assets/linux-wildmidi.cfg");
-  #endif
   long libraryver = WildMidi_GetVersion();
   unsigned int rate = frequency; //44100;//32072;
   unsigned mixer_options = WM_MO_REVERB | WM_MO_ENHANCED_RESAMPLING;
@@ -119,7 +132,7 @@ int main(int argc, char* argv[]) {
                       (libraryver>>16) & 255,
                       (libraryver>> 8) & 255,
                       (libraryver    ) & 255);
-  if (WildMidi_Init(config_file.c_str(), rate, mixer_options) == -1) {
+  if (WildMidi_Init(wildmidiConfigFilename.c_str(), rate, mixer_options) == -1) {
       fprintf(stderr, "%s\n", WildMidi_GetError());
       WildMidi_ClearError();
       return (1);
