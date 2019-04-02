@@ -130,16 +130,117 @@ int destroyWindow()
   return 0;
 }
 
-void render(float t, float dt)
+int base12ToBase7(int pitch) {
+   int octave = pitch / 12;
+   int chroma = pitch % 12;
+   int output = 0;
+   switch (chroma) {
+      case  0: output = 0; break; // C
+      case  1: output = 0; break; // C#
+      case  2: output = 1; break; // D
+      case  3: output = 2; break; // Eb
+      case  4: output = 2; break; // E
+      case  5: output = 3; break; // F
+      case  6: output = 3; break; // F#
+      case  7: output = 4; break; // G
+      case  8: output = 4; break; // G#
+      case  9: output = 5; break; // A
+      case 10: output = 6; break; // Bb
+      case 11: output = 6; break; // B
+   }
+   return output + 7 * octave;
+}
+
+int getCurrentNote(smf::MidiFile& midifile, int channel, float elapsedTime)
+{
+  // inefficient linear search for current note.
+  for (int j=0; j< midifile[channel].size(); j++) {
+    if (!midifile[channel][j].isNoteOn()) {
+      continue;
+    }
+    /*if (!drumQ) {
+      if (midifile[channel][j].getChannel() == 0x09) {
+        continue;
+      }
+    } */
+    int tickstart, tickend, tickdur;
+    double starttime, endtime, duration;
+    int height = 1;
+    tickstart  = midifile[channel][j].tick;
+    starttime  = midifile[channel][j].seconds;
+    if (midifile[channel][j].isLinked()) {
+      tickdur  = midifile[channel][j].getTickDuration();
+      tickend  = tickstart + tickdur;
+      duration = midifile[channel][j].getDurationInSeconds();
+      endtime  = starttime + duration;
+   } else {
+      tickdur = 0;
+      tickend = tickstart;
+      duration = 0.0;
+      endtime = starttime;
+   }
+   int pitch    = midifile[channel][j].getP1();
+   
+   if (midifile[channel][j].getChannel() == 9) {
+      //pitch = PercussionMap[pitch];
+   }
+   
+   int pitch12  = pitch;
+   int pitch7 = base12ToBase7(pitch12);
+/*    if (diatonicQ) {
+      pitch = base12ToBase7(pitch);
+   } */
+   int velocity = midifile[channel][j].getP2();
+   int _channel  = midifile[channel][j].getChannel();  // 0-offset
+
+    // Is this note currently on? if so return its pitch
+    bool on = elapsedTime >= starttime && elapsedTime <= endtime;
+    if(on)
+    {
+      //printf("On: pitch: %d\n", pitch12);
+      return pitch7;
+    }
+  }
+  return 0;
+}
+
+void drawNote(int currentNote, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+{
+  SDL_Rect drawRect;
+  //drawRect.x = width - 400;
+  drawRect.x = width - 1;
+  drawRect.y = currentNote;
+  drawRect.w = 1;
+  drawRect.h = 2;
+  // Set render color to blue ( rect will be rendered in this color )
+  SDL_SetRenderDrawColor( renderer, r, g, b, a );
+  SDL_RenderFillRect(renderer, &drawRect);
+}
+
+int hasNotes(smf::MidiEventList& eventlist) {
+   for (int i=0; i<eventlist.size(); i++) {
+      if (eventlist[i].isNoteOn()) {
+         if (false) { //drumQ) {
+            return 1;
+         } else if (eventlist[i].getChannel() != 0x09) {
+            return 1;
+         }
+      }
+   }
+   return 0;
+}
+
+void render(float t, float dt, smf::MidiFile& midifile)
 {
   // Set the color to cornflower blue and clear
-  SDL_SetRenderDrawColor(renderer, 100, 149, 237, 255);
-  SDL_RenderClear(renderer);
+/*   SDL_SetRenderDrawColor(renderer, 100, 149, 237, 255);
+  SDL_RenderClear(renderer); */
 
+  #if 0
   SDL_Rect srcrect;
-  srcrect.x = 1;
+  srcrect.x = 0;
   srcrect.y = 0;
-  srcrect.w = width - 1;
+  srcrect.w = width;// - 1;
   srcrect.h = height;
 
   SDL_Rect destrect;
@@ -159,34 +260,133 @@ void render(float t, float dt)
 	SDL_SetRenderTarget(renderer, textureBuffer);
 	//SDL_RenderClear(renderer);
 	//SDL_RenderCopy(renderer, texture, NULL, NULL);
-  SDL_RenderCopyEx(renderer, texture, &srcrect, &destrect, 0.0, NULL, SDL_FLIP_NONE);
+  SDL_RenderCopyEx(renderer, texture, &srcrect, &destrect, 0, NULL, SDL_FLIP_NONE);
 
-
-  // TODO: draw in new notes along the right edge
   #if 1
   static int i = 0;
   SDL_Rect drawRect;
-  drawRect.x = 300;
-  drawRect.y = 200 + i % 100;
-  drawRect.w = 100;
-  drawRect.h = 100;
+  drawRect.x = 3 * width / 2;
+  drawRect.y = 10; //height / 2;
+  drawRect.w = 1; //width / 4;
+  drawRect.h = 10; //height / 4;
   // Set render color to blue ( rect will be rendered in this color )
   SDL_SetRenderDrawColor( renderer, 0, 0, 255, 255 );
   SDL_RenderFillRect(renderer, &drawRect);
   i++;
+  #else
+     // draw the actual notes:
+  for (int i=midifile.size()-1; i>=0; i--) {
+    if (!hasNotes(midifile[i])) {
+        continue;
+    }
+    int track = i;
+
+    int currentNote = getCurrentNote(midifile, track, t);
+    
+    if(currentNote > 0)
+    {
+      Uint8 _r = 255;
+      Uint8 _g = 0;
+      Uint8 _b = 0;
+      Uint8 _a = 255;
+      drawNote(currentNote, _r, _g, _b, _a);
+    }
+
+  }
   #endif
 
   //Detach the texture
 	SDL_SetRenderTarget(renderer, NULL);
 
-  // copy the render buffer back to our background texture
-  SDL_SetRenderTarget(renderer, texture);
-  SDL_RenderCopy(renderer, textureBuffer, NULL, NULL);
+  #endif
+
+  SDL_SetRenderTarget(renderer, textureBuffer);
+
+  #if 1
+  // debug clear to black
+  SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+  SDL_RenderClear(renderer);
+  #endif
+
+  SDL_Rect srcrect;
+  srcrect.x = 1;
+  srcrect.y = 0;
+  srcrect.w = width - 1;
+  srcrect.h = height;
+
+  SDL_Rect destrect;
+  destrect.x = 0;
+  destrect.y = 0;
+  destrect.w = width - 1;
+  destrect.h = height;
+  //SDL_RenderCopy(renderer, texture, NULL, NULL);
+  SDL_RenderCopyEx(renderer, texture, &srcrect, &destrect, 0, NULL, SDL_FLIP_NONE);
+
+  #if 0
+  {
+    SDL_Rect drawRect;
+    drawRect.x = width - 1 ;
+    drawRect.y = 100 ;
+    drawRect.w = 1;
+    drawRect.h = 100;
+    // Set render color to blue ( rect will be rendered in this color )
+    SDL_SetRenderDrawColor( renderer, 0, 255, 255, 255 );
+    SDL_RenderFillRect(renderer, &drawRect);
+  }
+  #else
+  // draw the actual notes:
+  for (int i=midifile.size()-1; i>=0; i--) {
+    if (!hasNotes(midifile[i])) {
+        continue;
+    }
+    int track = i;
+
+    int currentNote = getCurrentNote(midifile, track, t);
+    
+    if(currentNote > 0)
+    {
+      Uint8 _r = 255;
+      Uint8 _g = 0;
+      Uint8 _b = 0;
+      Uint8 _a = 255;
+      drawNote(currentNote, _r, _g, _b, _a);
+    }
+
+  }
+  #endif
+
+
   SDL_SetRenderTarget(renderer, NULL);
 
+  // copy the render buffer back to our background texture
+  SDL_SetRenderTarget(renderer, texture);
+  
+  SDL_RenderCopy(renderer, textureBuffer, NULL, NULL);
+
+  // debug clear to yellow
+  #if 0
+  SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+  SDL_RenderClear(renderer);
+  #endif
+
+  #if 0
+  {
+    SDL_Rect drawRect;
+    drawRect.x = width - 1 ;
+    drawRect.y = 100 ;
+    drawRect.w = 1;
+    drawRect.h = 100;
+    // Set render color to blue ( rect will be rendered in this color )
+    SDL_SetRenderDrawColor( renderer, 0, 255, 255, 255 );
+    SDL_RenderFillRect(renderer, &drawRect);
+  }
+  #endif
+
+  SDL_SetRenderTarget(renderer, NULL);
+  
   // Set the color to cornflower blue and clear
   SDL_SetRenderDrawColor(renderer, 100, 149, 237, 255);
-  //SDL_RenderClear(renderer);
+  SDL_RenderClear(renderer);
 
   // draw in our visualization texture which should make the BG 100% not visible
   SDL_RenderCopy(renderer, texture, NULL, NULL);
@@ -249,9 +449,37 @@ void iter()
   }
 }
 
+Uint32  current_time = 0; //SDL_GetTicks();
+Uint32 last_update_time = 0;
+Uint32  delta_time = current_time - last_update_time;
+float last_elapsed_time = 0;
+
+smf::MidiFile midifile;
+
 void mainLoop()
 {
-  iter();
+  Uint32  current_time = SDL_GetTicks();
+  Uint32  delta_time = current_time - last_update_time;
+  //static Uint32 freq = SDL_GetPerformanceFrequency();
+  //float elapsed = static_cast<float>(current_time * 1000) / static_cast<float>(freq);
+  float elapsed = static_cast<float>(current_time) / 1000.0f;
+  float dt = elapsed - last_elapsed_time;
+
+  #if 0
+  printf("current: %d last: %d dt: %d freq:%d elapsed:%f\n", current_time, last_update_time, delta_time, freq, elapsed);
+  #endif
+
+  if(delta_time > 0)
+  {
+    #if 0
+    printf("dt: %f\n", dt);
+    #endif
+    iter();
+
+    #if defined(VIZ)
+    render(elapsed, dt, midifile);
+    #endif
+  }
 
   #if defined(VIZ)
   // Get the next event
@@ -266,13 +494,15 @@ void mainLoop()
       return;
     }
   }
-  // TODO: feed with total elapsed time and delta time
-  render(0.0f, 0.0f);
   #endif
+
+  last_update_time = current_time;
+  last_elapsed_time = elapsed;
 
   #if !defined(__EMSCRIPTEN__)
   usleep(16);
   #endif
+  
 }
 
 
@@ -290,11 +520,13 @@ int main(int argc, char* argv[]) {
   #if defined(VIZ)
   // use midifile lib to parse contents for visualization
   // would be nice if wildmidi had this functionality exposed but it doesn't
-  smf::MidiFile midifile(midiFileName);
+  midifile  = smf::MidiFile(midiFileName);
   std::stringstream notes;
   int minpitch = -1;
   int maxpitch = -1;
   //getMinMaxPitch(midifile, minpitch, maxpitch);
+  midifile.linkNotePairs();    // first link note-ons to note-offs
+  midifile.doTimeAnalysis();   // then create ticks to seconds mapping
   #endif
 
   //
