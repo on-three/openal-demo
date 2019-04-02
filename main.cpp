@@ -31,6 +31,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <memory>
 
 static const std::string defaultMidiFilename = "assets/bburg14a.mid";
 static const std::string wildmidiConfigFilename = 
@@ -72,6 +73,119 @@ SDL_Texture *texture = nullptr;
 SDL_Texture *textureBuffer = nullptr;
 int width = 640;
 int height = 480;
+
+// In order to more effeciently tell when each note is on/off via timestamp
+// we'll pre-parse the midi file into N linked lists (one per channel)
+// so per render we'll have to check each list once O(N) time complexity.
+struct Note
+{
+  std::shared_ptr<Note> _next;
+  float _start = 0.0f;
+  float _end = 0.0f;
+  int _pitch = 0;
+
+  Note(float start, float end, int pitch)
+    :_start(start)
+    ,_end(end)
+    ,_pitch(pitch)
+  {
+
+  }
+  bool isOn(float now)
+  {
+    return now >= _start && now <= _end;
+  }
+
+  bool notYetOn(float now)
+  {
+    return now < _start;
+  }
+
+  bool over(float now)
+  {
+    return now > _end;
+  }
+
+  // If this note is over, replace itself with the next not yet on note in the linked list
+/*   std::shared_ptr<Note> toNextNote()
+  {
+    if()
+  } */
+
+  void link(std::shared_ptr<Note>& next)
+  {
+    if(!_next)
+      _next = next;
+    else
+      _next->link(next);
+    
+  }
+
+  static std::vector< std::shared_ptr<Note>> inflateChannels(smf::MidiFile& midifile)
+  {
+    std::vector< std::shared_ptr< Note >> channels;
+    for(int channel = 0; channel < midifile.size(); ++channel)
+    {
+      for (int j = 0; j < midifile[channel].size(); j++)
+      {
+        if (!midifile[channel][j].isNoteOn())
+        {
+          continue;
+        }
+        // only linked notes for now
+        if(!midifile[channel][j].isLinked())
+        {
+          continue;
+        }
+        /*if (!drumQ) {
+          if (midifile[channel][j].getChannel() == 0x09) {
+            continue;
+          }
+        } */
+        int tickstart, tickend, tickdur;
+        double starttime, endtime, duration;
+        int height = 1;
+        tickstart  = midifile[channel][j].tick;
+        starttime  = midifile[channel][j].seconds;
+        tickdur  = midifile[channel][j].getTickDuration();
+        tickend  = tickstart + tickdur;
+        duration = midifile[channel][j].getDurationInSeconds();
+        endtime  = starttime + duration;
+        int pitch    = midifile[channel][j].getP1();
+    
+        //if (midifile[channel][j].getChannel() == 9) {
+            //pitch = PercussionMap[pitch];
+        //}
+      
+        int pitch12  = pitch;
+        #if 1
+        int pitch7 = pitch12;
+        #else
+        int pitch7 = base12ToBase7(pitch12);
+        #endif
+        /*if (diatonicQ) {
+            pitch = base12ToBase7(pitch);
+        } */
+        int velocity = midifile[channel][j].getP2();
+        int _channel  = midifile[channel][j].getChannel();  // 0-offset
+
+        std::shared_ptr<Note> newNote = std::make_shared<Note>(starttime, endtime, pitch7);
+        if(channel >= channels.size())
+        {
+          channels.push_back(newNote);
+        }
+        else
+        {
+          channels[channel]->link(newNote);
+        }
+      }
+    }
+    return channels;
+  }
+  
+};
+
+std::vector< std::shared_ptr<Note> > channelNotes;
 
 int createWindow()
 {
@@ -233,61 +347,43 @@ void getMinMaxPitch(const smf::MidiFile& midifile, int& minpitch, int& maxpitch)
 int minPitch = 0;
 int maxPitch = 0;
 
-int getCurrentNote(smf::MidiFile& midifile, int channel, float elapsedTime)
+int getCurrentNote(int channel, float now)
 {
-  // inefficient linear search for current note.
-  for (int j=0; j< midifile[channel].size(); j++) {
-    if (!midifile[channel][j].isNoteOn()) {
-      continue;
-    }
-    /*if (!drumQ) {
-      if (midifile[channel][j].getChannel() == 0x09) {
-        continue;
-      }
-    } */
-    int tickstart, tickend, tickdur;
-    double starttime, endtime, duration;
-    int height = 1;
-    tickstart  = midifile[channel][j].tick;
-    starttime  = midifile[channel][j].seconds;
-    if (midifile[channel][j].isLinked()) {
-      tickdur  = midifile[channel][j].getTickDuration();
-      tickend  = tickstart + tickdur;
-      duration = midifile[channel][j].getDurationInSeconds();
-      endtime  = starttime + duration;
-   } else {
-      tickdur = 0;
-      tickend = tickstart;
-      duration = 0.0;
-      endtime = starttime;
-   }
-   int pitch    = midifile[channel][j].getP1();
-   
-   if (midifile[channel][j].getChannel() == 9) {
-      //pitch = PercussionMap[pitch];
-   }
-   
-   int pitch12  = pitch;
-   #if 1
-  int pitch7 = pitch12;
-   #else
-   int pitch7 = base12ToBase7(pitch12);
-   #endif
-/*    if (diatonicQ) {
-      pitch = base12ToBase7(pitch);
-   } */
-   int velocity = midifile[channel][j].getP2();
-   int _channel  = midifile[channel][j].getChannel();  // 0-offset
-
-    // Is this note currently on? if so return its pitch
-    bool on = elapsedTime >= starttime && elapsedTime <= endtime;
-    if(on)
-    {
-      //printf("On: pitch: %d\n", pitch12);
-      return pitch7;
-    }
+  static const int invalidNote = 0;
+  if(channel >= channelNotes.size())
+  {
+    // TODO: WARN
+    // TODO: better failed note value
+    return invalidNote;
   }
-  return 0;
+
+  std::shared_ptr<Note> pNote = channelNotes[channel];
+  if(!pNote)
+  {
+    // TODO: WARN
+    // TODO: better failed note value
+    return invalidNote;
+  }
+
+  // make sure the head of our linked list is always current or not yet to play
+  while(pNote->over(now))
+  {
+    channelNotes[channel] = pNote->_next;
+    if(!channelNotes[channel]) return invalidNote;
+    pNote = channelNotes[channel];
+  }
+
+  if(pNote->notYetOn(now))
+  {
+    return invalidNote;
+  }
+
+  if(pNote->isOn(now))
+  {
+    return pNote->_pitch;
+  }
+
+  return invalidNote;
 }
 
 void drawNote(int currentNote, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
@@ -353,7 +449,7 @@ void render(float t, float dt, smf::MidiFile& midifile)
     }
     int track = i;
 
-    int currentNote = getCurrentNote(midifile, track, t);
+    int currentNote = getCurrentNote(track, t);
     
     if(currentNote > 0)
     {
@@ -531,6 +627,11 @@ int main(int argc, char* argv[]) {
   getMinMaxPitch(midifile, minPitch, maxPitch);
 
   printf("Minpitch: %d maxpitch: %d\n", minPitch, maxPitch);
+
+  // construct a vector of linked lists, each node describing a note start/stop time and tone
+  // this allows us to quickly scan the next note for each channel rather than having to always
+  // to a linear search for it.
+  channelNotes = Note::inflateChannels(midifile);
 
   #endif
 
