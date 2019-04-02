@@ -198,14 +198,18 @@ int base12ToBase7(int pitch) {
 
 void getMinMaxPitch(const smf::MidiFile& midifile, int& minpitch, int& maxpitch) {
    int key = 0;
+   minpitch = 1000;
+   maxpitch = 0;
    for (int i=0; i<midifile.size(); i++) {
       for (int j=0; j<midifile[i].size(); j++) {
          if (midifile[i][j].isNoteOn()) {
             key = midifile[i][j].getP1();
-            if ((minpitch < 0) || (minpitch > key)) {
+            //if ((minpitch < 0) || (minpitch > key)) {
+            if ( key < minpitch) {
                minpitch = key;
             }
-            if ((maxpitch < 0) || (maxpitch < key)) {
+            //if ((maxpitch < 0) || (maxpitch < key)) {
+            if (key > maxpitch) {
                maxpitch = key;
             }
          }
@@ -220,7 +224,7 @@ void getMinMaxPitch(const smf::MidiFile& midifile, int& minpitch, int& maxpitch)
          maxpitch = 80;
       }
    }
-   if (true) {
+   if (false) {
       minpitch = base12ToBase7(minpitch);
       maxpitch = base12ToBase7(maxpitch);
    }
@@ -264,7 +268,11 @@ int getCurrentNote(smf::MidiFile& midifile, int channel, float elapsedTime)
    }
    
    int pitch12  = pitch;
+   #if 1
+  int pitch7 = pitch12;
+   #else
    int pitch7 = base12ToBase7(pitch12);
+   #endif
 /*    if (diatonicQ) {
       pitch = base12ToBase7(pitch);
    } */
@@ -289,12 +297,11 @@ void drawNote(int currentNote, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
   
   // scale notes according to min/max pitch and screen height
   if(currentNote <= 0) return;
-  float scaledPitch = static_cast<float>(currentNote) / static_cast<float>(maxPitch + noteHeight - minPitch);
-  //printf("scaledpitch: %f\n", scaledPitch);
+  
+  float scaledPitch = static_cast<float>(currentNote - minPitch) / static_cast<float>(maxPitch - minPitch);
   int y = height - height * scaledPitch;
 
   SDL_Rect drawRect;
-  //drawRect.x = width - 400;
   drawRect.x = width - 1;
   drawRect.y = y;
   drawRect.w = 1;
@@ -522,6 +529,9 @@ int main(int argc, char* argv[]) {
   midifile.doTimeAnalysis();   // then create ticks to seconds mapping
   trackHues = getTrackHues(midifile);
   getMinMaxPitch(midifile, minPitch, maxPitch);
+
+  printf("Minpitch: %d maxpitch: %d\n", minPitch, maxPitch);
+
   #endif
 
   //
