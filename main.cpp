@@ -135,11 +135,39 @@ std::vector<int> getTrackHues(smf::MidiFile& midifile)
 {
   static int unsigned temp = 10101; //seed 
   std::vector<int> output;
+
+  #if 0
+  printf("NumChannels: %d\n", midifile.size());
+  #endif
+
+  static std::vector<unsigned int> colors = {
+    0xC0C0C0FF, // 	rgb(192, 192, 192) Silver
+    0x808080FF, //	rgb(128, 128, 128) gray
+    //0x000000FF, //	rgb(0, 0, 0) black
+    0xFF0000FF, //	rgb(255, 0, 0) red
+    0x800000FF, //	rgb(128, 0, 0) maroon
+    0xFFFF00FF, //	rgb(255, 255, 0) yellow
+    0x808000FF, //	rgb(128, 128, 0) olive
+    0x00FF00FF, //	rgb(0, 255, 0) lime
+    0x008000FF, //	rgb(0, 128, 0) green
+    0x00FFFFFF, //	rgb(0, 255, 255) aqua
+    0x008080FF, //	rgb(0, 128, 128) teal
+    0x0000FFFF, //	rgb(0, 0, 255) blue
+    0x000080FF, //	rgb(0, 0, 128) navy
+    0xFF00FFFF, //	rgb(255, 0, 255)) fuchsia
+    0x800080FF //	rgb(128, 0, 128)) purple
+  };
+
   output.resize(midifile.size());
   for (int i = 0; i < midifile.size(); i++)
   {
+    #if 0
     temp = temp*(i+i+1);
     temp = (temp^(0xffffff))>>2;
+    #else
+    int numColors = colors.size();
+    temp = colors[i % numColors]; 
+    #endif
     output[i] = temp;
   }
    return output;
