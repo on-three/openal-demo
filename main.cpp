@@ -168,6 +168,39 @@ int base12ToBase7(int pitch) {
    return output + 7 * octave;
 }
 
+void getMinMaxPitch(const smf::MidiFile& midifile, int& minpitch, int& maxpitch) {
+   int key = 0;
+   for (int i=0; i<midifile.size(); i++) {
+      for (int j=0; j<midifile[i].size(); j++) {
+         if (midifile[i][j].isNoteOn()) {
+            key = midifile[i][j].getP1();
+            if ((minpitch < 0) || (minpitch > key)) {
+               minpitch = key;
+            }
+            if ((maxpitch < 0) || (maxpitch < key)) {
+               maxpitch = key;
+            }
+         }
+      }
+   }
+
+   if (true) { //grandQ) {
+      if (minpitch > 40) {
+         minpitch = 40;
+      }
+      if (maxpitch < 80) {
+         maxpitch = 80;
+      }
+   }
+   if (true) {
+      minpitch = base12ToBase7(minpitch);
+      maxpitch = base12ToBase7(maxpitch);
+   }
+}
+
+int minPitch = 0;
+int maxPitch = 0;
+
 int getCurrentNote(smf::MidiFile& midifile, int channel, float elapsedTime)
 {
   // inefficient linear search for current note.
@@ -223,12 +256,21 @@ int getCurrentNote(smf::MidiFile& midifile, int channel, float elapsedTime)
 
 void drawNote(int currentNote, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
+
+  const static int noteHeight = 10;
+  
+  // scale notes according to min/max pitch and screen height
+  if(currentNote <= 0) return;
+  float scaledPitch = static_cast<float>(currentNote) / static_cast<float>(maxPitch + noteHeight - minPitch);
+  //printf("scaledpitch: %f\n", scaledPitch);
+  int y = height - height * scaledPitch;
+
   SDL_Rect drawRect;
   //drawRect.x = width - 400;
   drawRect.x = width - 1;
-  drawRect.y = currentNote;
+  drawRect.y = y;
   drawRect.w = 1;
-  drawRect.h = 2;
+  drawRect.h = noteHeight;
   // Set render color to blue ( rect will be rendered in this color )
   SDL_SetRenderDrawColor( renderer, r, g, b, a );
   SDL_RenderFillRect(renderer, &drawRect);
@@ -249,78 +291,10 @@ int hasNotes(smf::MidiEventList& eventlist) {
 
 void render(float t, float dt, smf::MidiFile& midifile)
 {
-  // Set the color to cornflower blue and clear
-/*   SDL_SetRenderDrawColor(renderer, 100, 149, 237, 255);
-  SDL_RenderClear(renderer); */
-
-  #if 0
-  SDL_Rect srcrect;
-  srcrect.x = 0;
-  srcrect.y = 0;
-  srcrect.w = width;// - 1;
-  srcrect.h = height;
-
-  SDL_Rect destrect;
-  destrect.x = 0;
-  destrect.y = 0;
-  destrect.w = width;// - 1;
-  destrect.h = height;
-
-  // copy the current background texture back to the render texture (but with 1 pixel left offset)
-  /*   int SDL_RenderCopyEx(SDL_Renderer*          renderer,
-                     SDL_Texture*           texture,
-                     const SDL_Rect*        srcrect,
-                     const SDL_Rect*        dstrect,
-                     const double           angle,
-                     const SDL_Point*       center,
-                     const SDL_RendererFlip flip) */
-	SDL_SetRenderTarget(renderer, textureBuffer);
-	//SDL_RenderClear(renderer);
-	//SDL_RenderCopy(renderer, texture, NULL, NULL);
-  SDL_RenderCopyEx(renderer, texture, &srcrect, &destrect, 0, NULL, SDL_FLIP_NONE);
-
-  #if 1
-  static int i = 0;
-  SDL_Rect drawRect;
-  drawRect.x = 3 * width / 2;
-  drawRect.y = 10; //height / 2;
-  drawRect.w = 1; //width / 4;
-  drawRect.h = 10; //height / 4;
-  // Set render color to blue ( rect will be rendered in this color )
-  SDL_SetRenderDrawColor( renderer, 0, 0, 255, 255 );
-  SDL_RenderFillRect(renderer, &drawRect);
-  i++;
-  #else
-     // draw the actual notes:
-  for (int i=midifile.size()-1; i>=0; i--) {
-    if (!hasNotes(midifile[i])) {
-        continue;
-    }
-    int track = i;
-
-    int currentNote = getCurrentNote(midifile, track, t);
-    
-    if(currentNote > 0)
-    {
-      Uint8 _r = 255;
-      Uint8 _g = 0;
-      Uint8 _b = 0;
-      Uint8 _a = 255;
-      drawNote(currentNote, _r, _g, _b, _a);
-    }
-
-  }
-  #endif
-
-  //Detach the texture
-	SDL_SetRenderTarget(renderer, NULL);
-
-  #endif
-
   SDL_SetRenderTarget(renderer, textureBuffer);
-
+  
   #if 1
-  // debug clear to black
+  // clear to black
   SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
   SDL_RenderClear(renderer);
   #endif
@@ -330,27 +304,13 @@ void render(float t, float dt, smf::MidiFile& midifile)
   srcrect.y = 0;
   srcrect.w = width - 1;
   srcrect.h = height;
-
   SDL_Rect destrect;
   destrect.x = 0;
   destrect.y = 0;
   destrect.w = width - 1;
   destrect.h = height;
-  //SDL_RenderCopy(renderer, texture, NULL, NULL);
   SDL_RenderCopyEx(renderer, texture, &srcrect, &destrect, 0, NULL, SDL_FLIP_NONE);
 
-  #if 0
-  {
-    SDL_Rect drawRect;
-    drawRect.x = width - 1 ;
-    drawRect.y = 100 ;
-    drawRect.w = 1;
-    drawRect.h = 100;
-    // Set render color to blue ( rect will be rendered in this color )
-    SDL_SetRenderDrawColor( renderer, 0, 255, 255, 255 );
-    SDL_RenderFillRect(renderer, &drawRect);
-  }
-  #else
   // draw the actual notes:
   for (int i=midifile.size()-1; i>=0; i--) {
     if (!hasNotes(midifile[i])) {
@@ -373,8 +333,6 @@ void render(float t, float dt, smf::MidiFile& midifile)
     }
 
   }
-  #endif
-
 
   SDL_SetRenderTarget(renderer, NULL);
 
@@ -387,19 +345,6 @@ void render(float t, float dt, smf::MidiFile& midifile)
   #if 0
   SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
   SDL_RenderClear(renderer);
-  #endif
-
-  #if 0
-  {
-    SDL_Rect drawRect;
-    drawRect.x = width - 1 ;
-    drawRect.y = 100 ;
-    drawRect.w = 1;
-    drawRect.h = 100;
-    // Set render color to blue ( rect will be rendered in this color )
-    SDL_SetRenderDrawColor( renderer, 0, 255, 255, 255 );
-    SDL_RenderFillRect(renderer, &drawRect);
-  }
   #endif
 
   SDL_SetRenderTarget(renderer, NULL);
@@ -548,6 +493,7 @@ int main(int argc, char* argv[]) {
   midifile.linkNotePairs();    // first link note-ons to note-offs
   midifile.doTimeAnalysis();   // then create ticks to seconds mapping
   trackHues = getTrackHues(midifile);
+  getMinMaxPitch(midifile, minPitch, maxPitch);
   #endif
 
   //
