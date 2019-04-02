@@ -30,6 +30,7 @@
 
 #include <string>
 #include <sstream>
+#include <vector>
 
 static const std::string defaultMidiFilename = "assets/bburg14a.mid";
 static const std::string wildmidiConfigFilename = 
@@ -129,6 +130,22 @@ int destroyWindow()
 
   return 0;
 }
+
+std::vector<int> getTrackHues(smf::MidiFile& midifile)
+{
+  static int unsigned temp = 10101; //seed 
+  std::vector<int> output;
+  output.resize(midifile.size());
+  for (int i = 0; i < midifile.size(); i++)
+  {
+    temp = temp*(i+i+1);
+    temp = (temp^(0xffffff))>>2;
+    output[i] = temp;
+  }
+   return output;
+}
+
+std::vector<int> trackHues;
 
 int base12ToBase7(int pitch) {
    int octave = pitch / 12;
@@ -345,10 +362,13 @@ void render(float t, float dt, smf::MidiFile& midifile)
     
     if(currentNote > 0)
     {
-      Uint8 _r = 255;
-      Uint8 _g = 0;
-      Uint8 _b = 0;
+      int hue = trackHues[track];
+
+      Uint8 _r = hue >> 24;
+      Uint8 _g = hue >> 16;
+      Uint8 _b = hue >> 8;
       Uint8 _a = 255;
+
       drawNote(currentNote, _r, _g, _b, _a);
     }
 
@@ -527,6 +547,7 @@ int main(int argc, char* argv[]) {
   //getMinMaxPitch(midifile, minpitch, maxpitch);
   midifile.linkNotePairs();    // first link note-ons to note-offs
   midifile.doTimeAnalysis();   // then create ticks to seconds mapping
+  trackHues = getTrackHues(midifile);
   #endif
 
   //
